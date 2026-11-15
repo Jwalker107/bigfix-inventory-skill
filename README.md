@@ -1,0 +1,1 @@
+"# bigfix-inventory-skill" 
