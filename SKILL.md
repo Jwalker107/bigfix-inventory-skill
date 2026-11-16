@@ -1,6 +1,6 @@
 ---
 name: bigfix-inventory-skill
-description: Write, edit, review, validate and test HCL BigFix Inventory (BFI) software signatures, the SoftwareIdentityCatalog XML files with ExtendedSignature CDATA bodies that the CIT scanner (wscanfs, wscansw) evaluates. Use it for custom catalog signatures, bigfix/CommunityContent Signatures/ PRs, software_*.xml files with versions like 0.AFFECTED or 0.any_version, scanner-language elements (MultipleInstance, FindFilePathEx, DpkgProductList, RpmProductInfo, MsiProductList, WinFileInfo, StringCrop, ReadFile), and running signatures through a standalone CIT scanner. Do not use it for Fixlet relevance or ActionScript; use bigfix-skill for those.
+description: Write, edit, review, validate and test HCL BigFix Inventory (BFI) software signatures, the SoftwareIdentityCatalog XML files with ExtendedSignature CDATA bodies that the CIT scanner (wscanfs, wscansw) evaluates. Use it for custom catalog signatures, bigfix/CommunityContent Signatures/ PRs, software_*.xml files with versions like 0.AFFECTED or 0.any_version, scanner-language elements (MultipleInstance, FindFilePathEx, DpkgProductList, RpmProductInfo, MsiProductList, WinFileInfo, StringCrop, ReadFile), and running signatures through a standalone CIT scanner or a scanner-equipped endpoint. Also covers choosing a BFI signature type (package, file, template or extended), BigFix Inventory Catalog Customization limits (schema 2.7, 4000 characters), and why a signature finds nothing: scan scope, exclusions and the file-system cache (FSMon, Provider Cache 2). Do not use it for Fixlet relevance or ActionScript; use bigfix-skill for those.
 ---
 
 # BigFix Inventory signatures
@@ -11,21 +11,31 @@ piece of software and its version on an endpoint, without running the software. 
 files are imported into BigFix Inventory as custom catalog content. The same format
 is used in [bigfix/CommunityContent `Signatures/`](https://github.com/bigfix/CommunityContent/tree/main/Signatures).
 
-This skill is adapted from
+This skill is **self-contained**: everything it needs is in this folder. It is adapted from
 [jgstew/bigfix-content `scanner_signatures/AGENTS.md`](https://github.com/jgstew/bigfix-content/blob/main/scanner_signatures/AGENTS.md)
-(The Unlicense, commit `3af41b5`, 2026-11-13). Its facts were verified with CIT
-**11.0.44.0** on Debian 12, Ubuntu 24.04, Rocky Linux 9 and Windows Server 2022. Facts
-marked *(not verified)* weren't. Re-check scanner behavior when the scanner version changes.
+(The Unlicense), last reconciled with that document on **2026-11-16**; that snapshot is archived
+at [reference/source-AGENTS.md](reference/source-AGENTS.md) for provenance and for the
+per-container expected results the reference pages only summarize. Links to HCL's public
+documentation are supporting references for product terminology and workflow; where an
+observation here differs from them, both the observation and its scope are recorded (see
+[reference/scanner-behavior.md](reference/scanner-behavior.md#where-this-skill-differs-from-hcl-public-documentation)).
+
+Scanner facts were verified with CIT **11.0.44.0** on Debian 12, Ubuntu 24.04, Rocky Linux 9
+(amd64 containers) and Windows Server 2022, in October-November 2026; some work also covered
+Debian 13/sid, Ubuntu 22.04, Rocky 8, Fedora 42, Amazon Linux 2023, openSUSE Leap 15 and Arch.
+Facts marked *(not verified)* weren't. Re-check scanner behavior when the scanner version changes.
 
 ## Read first
 
 | Task | Read |
 | --- | --- |
 | Any signature work | This file, then [reference/scanner-behavior.md](reference/scanner-behavior.md): the scanner quirks decide whether a signature works |
+| Choosing a signature type, Catalog Customization, the 4000-character limit, getting a change onto endpoints | [reference/catalog.md](reference/catalog.md) |
+| "The signature finds nothing": scan scope, exclusions, FSMon vs Provider Cache 2 | [reference/file-visibility.md](reference/file-visibility.md) |
 | Understanding or editing the XML | [reference/file-format.md](reference/file-format.md) |
 | Writing a new signature or detection method | [reference/writing.md](reference/writing.md) (rules and templates) |
 | Validating | [reference/validation.md](reference/validation.md) |
-| Running signatures through the real scanner (Linux, Windows; macOS limits) | [reference/testing.md](reference/testing.md) |
+| Running signatures (on an endpoint, or standalone on Linux/Windows; macOS limits) | [reference/testing.md](reference/testing.md) |
 | Reviewing a signature or a CommunityContent PR | [reference/review.md](reference/review.md) |
 | Design examples (Node.js/Electron, Brotli, PHP) | [reference/case-studies.md](reference/case-studies.md) and [examples/](examples/) |
 
@@ -34,9 +44,11 @@ marked *(not verified)* weren't. Re-check scanner behavior when the scanner vers
 1. **The outer schema never looks inside the CDATA.** A file can pass
    `SoftwareIdentityCatalog.xsd` with a misspelled element, attribute or `field` inside the
    signature body. Only the scanner's own XSS schema (level 3) and a real scan (level 4) catch that.
-2. **`FindFilePathEx` searches the `wscanfs` index, not the disk.** A file name missing from
-   the scan config's `FileMask` list is never found, and **symlinks are skipped** (Debian's
-   `/usr/bin/php` is a symlink, so `name="php"` doesn't find it).
+2. **`FindFilePathEx` searches a prepared file-system cache, never the disk.** A name the scan
+   catalog doesn't search for is never cached, an excluded directory is invisible, and
+   **symlinks are skipped** (Debian's `/usr/bin/php` is a symlink, so `name="php"` doesn't find
+   it). Windows normally uses the Scanner Service's FSMon cache; other platforms and the test
+   harnesses use Provider Cache 2 ([reference/file-visibility.md](reference/file-visibility.md)).
 3. **A failing scalar expression drops the whole instance silently.** `ReadFile` on a missing
    file does this. Guard every `ReadFile` with `FileExists` and a `FileInfoCompare field="size"`.
 4. **`RpmProductInfo field="version"` returns `8.0.30.8.el9_8.1`**, which `Compare type="version"`
@@ -49,6 +61,8 @@ More in [reference/scanner-behavior.md](reference/scanner-behavior.md).
 ## Workflow: editing or writing a signature
 
 1. Read the existing file and the other signatures under the same `Software`. Keep their style.
+   For new content, first confirm the software isn't already in the HCL-provided catalog and
+   that an extended signature is needed at all ([reference/catalog.md](reference/catalog.md)).
 2. Choose evidence in this order: package database (dpkg, RPM, MSI) > Windows version resource
    (`WinFileInfo`) > a small version file next to the binary (`ReadFile` + `StringCrop`, size-guarded).
 3. Keep the conventions:
@@ -65,8 +79,11 @@ More in [reference/scanner-behavior.md](reference/scanner-behavior.md).
      time-based (v1) IDs, which embed the machine's MAC address.
    - Set `created` on new signatures and update `modified` whenever a body changes
      (`xs:dateTime`, e.g. `2026-11-14T18:00:00Z`).
-5. Keep the file ASCII-only, with a newline at the end. Follow the repository's line-ending
-   rule; this workspace saves XML as UTF-8 with CRLF (see the repository AGENTS.md).
+5. Keep the file ASCII-only, with a newline at the end (non-ASCII characters fail the upstream
+   CI check). Match the line endings already used by the file you are editing, and whatever the
+   host repository's `.gitattributes` or editor settings dictate; don't convert a file wholesale
+   as a side effect of an edit. A body destined for Catalog Customization also has to stay
+   under 4000 characters.
 6. Validate: `python scripts/lint_signatures.py <files>` (levels 1-2 and the conventions), then
    level 3 and 4 with the harness ([reference/validation.md](reference/validation.md),
    [reference/testing.md](reference/testing.md)).
@@ -105,3 +122,12 @@ All scripts are in [scripts/](scripts/). Python 3.9+. See [scripts/SOURCE.md](sc
 - Version comparisons flag distro builds with backported fixes. Say so in the description or PR;
   a signature can't tell unless it lists fixed builds explicitly (see the Brotli case study).
 - Don't overstate affected ranges. Take them from the vendor advisory and cite it.
+- Keep a detection method's GUID when correcting it, so existing discoveries stay associated;
+  retire a method by deleting it and adding the replacement under a new GUID
+  ([reference/catalog.md](reference/catalog.md#getting-a-change-onto-endpoints)).
+- Where an observation here conflicts with HCL's public documentation, don't silently adopt
+  either one: state the version, platform and configuration the observation came from, and add
+  it to the divergence table in
+  [reference/scanner-behavior.md](reference/scanner-behavior.md#where-this-skill-differs-from-hcl-public-documentation).
+- A standalone test configuration is not a production scan configuration. Don't recommend one
+  as a deployment setting.

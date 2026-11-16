@@ -1,5 +1,19 @@
 # Writing a signature
 
+## Before the first line of XML
+
+- **Check the software isn't already in the HCL-provided catalog.** The custom catalog is
+  independent of it, so a duplicate produces duplicate instances.
+- **Check an extended signature is actually needed.** A Package, File, Package Template or File
+  Template signature is simpler and is the right answer when package or file rules alone
+  identify the software. [catalog.md](catalog.md) compares the types and lists what each one
+  requires.
+- **Check what the scanner can see on the target platform** - scan scope, exclusions and the
+  file cache ([file-visibility.md](file-visibility.md)). Evidence under a temp directory, a
+  container image store or an excluded system tree is invisible by default.
+- **Keep a UI-pasted body under 4000 characters** (Inventory schema 2.7). Exported catalog
+  files have no such limit, but a signature meant for Catalog Customization does.
+
 ## Rules
 
 1. **Pick evidence the scanner can read without running the software**, in this order:

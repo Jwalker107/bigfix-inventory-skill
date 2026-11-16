@@ -4,6 +4,8 @@ Design decisions from the signature sets in
 [jgstew/bigfix-content `scanner_signatures/`](https://github.com/jgstew/bigfix-content/tree/main/scanner_signatures)
 (also in bigfix/CommunityContent `Signatures/`). The CVE numbers are the ones in those files.
 Use these as patterns; check the upstream files for the current versions before copying.
+The full per-container expected results, fixture recipes and CVE-range reasoning behind these
+summaries are in the archived [source-AGENTS.md](source-AGENTS.md) (sections 5, 8 and 9).
 Two files are copied into [../examples/](../examples/): the PHP CVE file and the Electron
 inventory file.
 

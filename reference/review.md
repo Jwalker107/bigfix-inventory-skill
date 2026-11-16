@@ -44,6 +44,13 @@
 - [ ] Exports `INSTALL_PATH`, `DETAILED_VER`, `IS_INSTALLED`; empty `DETAILED_VER` skipped.
 - [ ] `IS_INSTALLED` block identical across the `Software`; ends with the exact skip string.
 - [ ] Level 4 run on each target platform, with results recorded (container/host, version, result).
+- [ ] Evidence is reachable: not under a default-excluded tree, and the searched names are ones
+      the scan catalog actually searches for ([file-visibility.md](file-visibility.md)).
+- [ ] An extended signature is warranted - a Package/File/template signature wouldn't do
+      ([catalog.md](catalog.md)).
+- [ ] If the body is meant to be pasted into Catalog Customization: under 4000 characters.
+- [ ] A corrected detection method keeps its signature GUID; a retired one is deleted and
+      replaced under a *new* GUID.
 - [ ] No HCL files (scanner, `config/xss`, `config.xml`) in the change.
 
 ## After a merge

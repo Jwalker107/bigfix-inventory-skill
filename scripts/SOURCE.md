@@ -3,7 +3,7 @@
 | File | Source |
 | --- | --- |
 | `install_cit.sh`, `install_cit.ps1`, `scanner_test.py`, `win_scanner_test.py`, `signature_harness.py` | Copied unchanged from [jgstew/bigfix-content `scanner_signatures/`](https://github.com/jgstew/bigfix-content/tree/main/scanner_signatures), commit `3af41b5` (2026-11-13). The Unlicense. |
-| `lint_signatures.py` | Written for this skill. It covers the static checks described in that folder's AGENTS.md (levels 1-3 and the repo conventions). |
+| `lint_signatures.py` | Written for this skill. It covers the static checks in [../reference/validation.md](../reference/validation.md) (levels 1-3 and the conventions). |
 | `../examples/*.xml` | Copied unchanged from the same folder and commit. |
 
 To refresh the copied files, download them again from upstream and re-run the linter on the
