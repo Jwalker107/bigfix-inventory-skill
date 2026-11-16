@@ -1,11 +1,60 @@
 # Running and testing signatures
 
-No BigFix client or server is needed. The CIT scanner installs and runs on its own, and
-`wscansw -i <file>` evaluates a signature file directly. The scripts are in [../scripts/](../scripts/).
+There are two distinct ways to run a signature:
 
-Prerequisites on the host: Python 3.9+, `xmllint` (libxml2), and `docker` (Linux) or `ssh`/`scp`
-with key auth (Windows). On Windows hosts without `xmllint`, run the harnesses from WSL or a Linux
-machine.
+1. **On an endpoint that already has the BigFix client and scanner** - HCL's manual procedure,
+   below. It uses the endpoint's own scan configuration and cache.
+2. **Standalone**, with no BigFix client or server - the rest of this page. The CIT scanner
+   installs and runs on its own and `wscansw -i <file>` evaluates a signature file directly.
+   The scripts are in [../scripts/](../scripts/).
+
+Either way, what the scanner can see is governed by scan scope, exclusions and the file cache:
+read [file-visibility.md](file-visibility.md) before concluding a signature is wrong.
+
+Prerequisites on the host for the standalone harnesses: Python 3.9+, `xmllint` (libxml2), and
+`docker` (Linux) or `ssh`/`scp` with key auth (Windows). On Windows hosts without `xmllint`, run
+the harnesses from WSL or a Linux machine.
+
+## Manual test on a real endpoint (HCL's procedure)
+
+Prerequisite: BigFix Scanner installed on a supported endpoint where the signature applies.
+
+1. Create `extended_signature_test.xml` holding only the signature under test: a `<Signatures>`
+   root and a `<Signature>` with `guid`, `name` and `type="OtherSignature"`, whose body exports
+   `IS_INSTALLED`.
+2. Use the `runscanner.sh` / `runscanner.bat` wrappers, which set the environment and run the
+   scanner commands.
+3. Reset the file-system scanner:
+
+   ```sh
+   "/opt/BESClient/tools/scanner/runscanner.sh" "/opt/BESClient" wscanfs -reset
+   ```
+
+   ```bat
+   "C:\Program Files (x86)\BigFix Enterprise\BES Client\tools\scanner\runscanner.bat" "c:\Program Files (x86)\BigFix Enterprise\BES Client" wscanfs.exe -reset
+   ```
+
+4. Run `wscansw` with the test catalog:
+
+   ```sh
+   "/opt/BESClient/tools/scanner/runscanner.sh" "/opt/BESClient" wscansw -i extended_signature_test.xml -o output.xml -e warning.xml
+   ```
+
+   ```bat
+   "C:\Program Files (x86)\BigFix Enterprise\BES Client\tools\scanner\runscanner.bat" "c:\Program Files (x86)\BigFix Enterprise\BES Client" wscansw.exe -i extended_signature_test.xml -o output.xml -e warning.xml
+   ```
+
+   **`-c` is deliberately not passed**, so the scanner uses the endpoint's default scan
+   configuration and cache - including its exclusions.
+
+5. Expect one `MatchedSignature` in `output.xml` per matching instance; no match produces no
+   `MatchedSignature`. Check `warning.xml` for errors.
+
+HCL's own example is Windows-specific (it uses a registry operand). This procedure is separate
+from the standalone harness below, which needs no BigFix client.
+
+Reference:
+[Testing manually](https://help.hcl-software.com/bigfix/11.0/inventory/Inventory/planinconf/Testing_manually.html).
 
 ## Install the CIT scanner (Linux)
 
@@ -132,6 +181,13 @@ nothing**. So:
 <FSScan version="1.0" priority="normal"><IncludeDirectory value="C:\"/><ExcludeDirectory value="C:\dir_to_exclude"/>
   <FileMask value="php.exe"/><!-- one per FindFilePathEx name --><Age value="0"/><Timeout value="1800"/><OutputData value="BASIC"/></FSScan>
 ```
+
+A fuller `FSScanner` plugin configuration, and the Windows provider selection
+(`wscancfg.exe -s fscanner.provider provider_cache2` for this test path,
+`provider_bfscanner` for the deployed Scanner Service), are in
+[file-visibility.md](file-visibility.md). Don't copy a standalone test configuration into
+production: a BigFix Inventory deployment writes its own, and the `bf-scanner` service was not
+needed for these tests.
 
 **Run by hand:** `wscanfs.exe -c <config> -reset`, `wscanfs.exe -c <config> -o fs.xml`,
 `wscansw.exe -i <sigs> -c <config> -o sw.xml -e warn.xml` (use `Start-Process -Wait` with output

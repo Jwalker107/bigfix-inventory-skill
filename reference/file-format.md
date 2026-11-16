@@ -3,6 +3,13 @@
 A signature file has two layers: an outer `SoftwareIdentityCatalog` document, and inside each
 `ExtendedSignature` a CDATA body written in the scanner's signature language (XSS).
 
+The same signature bodies appear in two different wrappers:
+
+| Wrapper | Root element | Used for |
+| --- | --- | --- |
+| BigFix Inventory custom catalog | `SoftwareIdentityCatalog` | Importing into BigFix Inventory; the format of `bigfix/CommunityContent` `Signatures/` and of the files in [../examples/](../examples/) |
+| BigFix Scanner catalog | `Signatures` | What runs on the device, and what `wscansw -i` takes for validation and direct testing |
+
 ## Outer layer: `SoftwareIdentityCatalog`
 
 ```xml
@@ -37,6 +44,10 @@ Rules from the outer schema (`SoftwareIdentityCatalog.xsd`):
   `PackageFilter`) **or** one `<ExtendedSignature>`. All the reference content uses extended
   signatures.
 - The outer schema types `ExtendedSignature` as "anything". **It doesn't check the CDATA.**
+- The exported catalog schema puts no length limit on a body, but BigFix Inventory's **Catalog
+  Customization UI accepts schema version 2.7 and at most 4000 characters** of signature
+  content. A body intended to be pasted there has to stay under that, or be split into more
+  than one detection method. See [catalog.md](catalog.md).
 
 File naming used in CommunityContent and jgstew/bigfix-content:
 `software_<Name>_<description>-<version>.xml`, e.g.
@@ -69,8 +80,12 @@ Shape of a body:
 </MultipleInstance>
 ```
 
-- `export="true"` variables are reported for each instance that isn't skipped. Convention:
-  export `INSTALL_PATH`, `DETAILED_VER` and `IS_INSTALLED`.
+- `export="true"` variables are reported for each instance that isn't skipped. BigFix Inventory
+  requires `IS_INSTALLED` and treats `INSTALL_PATH` and `DETAILED_VER` as optional; the
+  convention here is to export all three. The component *release* comes from the catalog entry,
+  `DETAILED_VER` from the signature.
+- `Variable@export` **defaults to `true`** in XSS. Set it explicitly on internal variables
+  (`export="false"`) so the intent is visible and nothing is reported by accident.
 - `Condition` + `Action do="SKIP" onValue="false"` (or `"true"`, or `""` for empty) drops the
   instance. Skip as early as possible.
 - Variables are substituted as `$(NAME)` in any attribute, also mid-string:
