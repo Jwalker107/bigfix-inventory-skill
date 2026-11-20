@@ -45,8 +45,9 @@ Lessons:
   (every end-of-life line counts as affected; pre-release `-rc` versions crop to the fixed `X.Y.Z`).
 - Electron: macOS framework `Info.plist` (`CFBundleVersion`, read with `ReadFile` + `StringCrop`
   because `XmlValue` fails on Apple plists), and unpacked distributions (`LICENSES.chromium.html` +
-  `electron[.exe]` + a `version` file). Packaged Electron apps on Windows/Linux have no readable
-  version file and are out of reach.
+  `electron[.exe]` + a `version` file, cropped at `&#10;` and then at `&#13;` so a CRLF copy
+  still compares). Packaged Electron apps on Windows/Linux have no readable version file and are
+  out of reach.
 - Out of reach for all signatures (a YARA scan can see these): Node embedded in Electron apps, Node
   SEA/pkg/nexe single executables, Node as a library, renamed binaries, Alpine.
 

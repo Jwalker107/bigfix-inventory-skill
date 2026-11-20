@@ -44,10 +44,33 @@ Rules from the outer schema (`SoftwareIdentityCatalog.xsd`):
   `PackageFilter`) **or** one `<ExtendedSignature>`. All the reference content uses extended
   signatures.
 - The outer schema types `ExtendedSignature` as "anything". **It doesn't check the CDATA.**
-- The exported catalog schema puts no length limit on a body, but BigFix Inventory's **Catalog
-  Customization UI accepts schema version 2.7 and at most 4000 characters** of signature
-  content. A body intended to be pasted there has to stay under that, or be split into more
-  than one detection method. See [catalog.md](catalog.md).
+- The exported catalog schema puts no length limit on a body, but two product limits do:
+  BigFix Inventory imports at most **3829 characters** from one CDATA body, and the **Catalog
+  Customization UI** accepts schema version 2.7 and at most **4000 characters** of pasted
+  signature content. Design to 3829, which satisfies both; a longer body has to be split into
+  more than one detection method, or simplified. See
+  [catalog.md](catalog.md#body-length-limits).
+
+### Leading comment
+
+A signature file may carry a comment between the XML declaration and
+`<SoftwareIdentityCatalog>` that names the entry:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Description: "Every Electron installation, with its version."
+ProductName: "Electron ANY"
+Release: "0.any_version"
+-->
+<SoftwareIdentityCatalog exportTimeStamp="2026-11-20T00:00:00Z">
+```
+
+`ProductName` must equal `<Software name>` and `Release` must equal `<Software version>`: the
+comment is a human-readable copy of those attributes, and it drifts silently when one side is
+edited. `scripts/lint_signatures.py` and the `bes-signature-lint` hook (`W110`) warn when they
+differ. The comment itself is optional - neither tool requires one - but where it exists it has
+to agree.
 
 File naming used in CommunityContent and jgstew/bigfix-content:
 `software_<Name>_<description>-<version>.xml`, e.g.

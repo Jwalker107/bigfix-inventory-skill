@@ -10,11 +10,14 @@ Checks (level numbers as in reference/validation.md):
   level 2  every ExtendedSignature CDATA body is well-formed XML
   level 3  bodies against the scanner's own XSS schema, with --xss-dir (needs lxml and the
            HCL-licensed CIT config/xss folder; never commit those files)
-  plus     uniqueId format/uniqueness across all files, created/modified, Software attributes,
-           repo conventions (guarded ReadFile, exported variables, empty-version skip, exact
-           IS_INSTALLED skip string, identical IS_INSTALLED block per Software) and known scanner
-           pitfalls (RpmProductInfo field="version", name filters on MsiProductList, XmlValue,
-           newline crops without a CR crop, empty <Instance>), ASCII-only, final newline.
+  plus     body length (error over 3829 characters, the most BigFix Inventory imports from one
+           body; warning over 90% of it), uniqueId format/uniqueness across all files,
+           created/modified, Software attributes, the leading comment's ProductName/Release
+           against the Software attributes, repo conventions (guarded ReadFile, exported
+           variables, empty-version skip, exact IS_INSTALLED skip string, identical IS_INSTALLED
+           block per Software) and known scanner pitfalls (RpmProductInfo field="version", name
+           filters on MsiProductList, XmlValue, newline crops without a CR crop, empty
+           <Instance>), ASCII-only, final newline.
 
 Signatures are numbered #n in file order, the same way scanner_test.py labels them.
 Exit 0: no errors (warnings allowed). Exit 1: errors. Exit 2: bad usage or unreadable input.
@@ -38,6 +41,13 @@ XSS_NS = "http://www.ibm.com/Tivoli/Signatures"
 CDATA_RE = re.compile(r"<!\[CDATA\[(.*?)\]\]>", re.S)
 EXPECTED_EXPORTS = ("INSTALL_PATH", "DETAILED_VER", "IS_INSTALLED")
 SIZE_GUARD_MIN, SIZE_GUARD_MAX = 512000, 5120000
+# BigFix Inventory imports at most this many characters from one CDATA body; the Catalog
+# Customization UI accepts at most UI_MAX_CHARS of pasted content. See reference/catalog.md.
+IMPORT_MAX_CHARS = 3829
+UI_MAX_CHARS = 4000
+NEAR_LIMIT = 0.9
+# the comment between the XML declaration and the root element, if there is one
+HEADER_COMMENT_RE = re.compile(r"\A\s*(?:<\?xml[^>]*\?>\s*)?<!--(.*?)-->", re.S)
 
 
 class Report:
@@ -83,6 +93,28 @@ def check_uuid(rep, fname, sig, what, value, seen):
                              "fine to keep, but new IDs should be uuid4")
 
 
+def check_header_comment(rep, fname, text, software):
+    """Warn when the leading comment's ProductName/Release disagree with a <Software>.
+
+    The comment is optional and only checked where it exists and carries the field, which is
+    also what pre-commit-bigfix's bes-signature-lint does (W110). `software` is the file's
+    [(name, version)] in document order.
+    """
+    m = HEADER_COMMENT_RE.match(text)
+    if not m or not software:
+        return
+    comment = m.group(1)
+    for field, index, attr in (("ProductName", 0, "name"), ("Release", 1, "version")):
+        fm = re.search(rf'{field}\s*:\s*"([^"]*)"', comment)
+        if not fm:
+            continue
+        value = fm.group(1)
+        actual = [s[index] for s in software]
+        if value not in actual:
+            rep.warn(fname, None, f'leading comment {field}: "{value}" is not the @{attr} of any '
+                                  f"<Software> in the file ({', '.join(repr(a) for a in actual)})")
+
+
 def local(tag):
     return tag.rsplit("}", 1)[-1]
 
@@ -95,6 +127,14 @@ def is_installed_block(raw_body):
 
 def check_body(rep, fname, sig, raw_body):
     """Level 2 + conventions + pitfalls for one CDATA body. Returns the parsed root or None."""
+    size = len(raw_body)
+    if size > IMPORT_MAX_CHARS:
+        rep.error(fname, sig, f"CDATA body is {size} characters; BigFix Inventory imports at most "
+                              f"{IMPORT_MAX_CHARS}. Split it into more than one detection method")
+    elif size > int(IMPORT_MAX_CHARS * NEAR_LIMIT):
+        rep.warn(fname, sig, f"CDATA body is {size} characters, over {int(NEAR_LIMIT * 100)}% of the "
+                             f"{IMPORT_MAX_CHARS}-character import limit "
+                             f"(Catalog Customization paste limit: {UI_MAX_CHARS})")
     try:
         root = ET.fromstring(raw_body)
     except ET.ParseError as e:
@@ -247,6 +287,8 @@ def main():
                     rep.error(fname, None, f"level 1 (outer XSD) line {err.line}: {err.message}")
         if doc.tag != "SoftwareIdentityCatalog":
             rep.error(fname, None, f"root element is <{doc.tag}>, expected <SoftwareIdentityCatalog>")
+        check_header_comment(rep, fname, text,
+                             [(sw.get("name") or "", sw.get("version") or "") for sw in doc.iter("Software")])
 
         bodies = CDATA_RE.findall(text)
         n = bi = 0   # n: Signature position (#n); bi: ExtendedSignature/CDATA position

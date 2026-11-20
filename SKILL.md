@@ -1,6 +1,6 @@
 ---
 name: bigfix-inventory-skill
-description: Write, edit, review, validate and test HCL BigFix Inventory (BFI) software signatures, the SoftwareIdentityCatalog XML files with ExtendedSignature CDATA bodies that the CIT scanner (wscanfs, wscansw) evaluates. Use it for custom catalog signatures, bigfix/CommunityContent Signatures/ PRs, software_*.xml files with versions like 0.AFFECTED or 0.any_version, scanner-language elements (MultipleInstance, FindFilePathEx, DpkgProductList, RpmProductInfo, MsiProductList, WinFileInfo, StringCrop, ReadFile), and running signatures through a standalone CIT scanner or a scanner-equipped endpoint. Also covers choosing a BFI signature type (package, file, template or extended), BigFix Inventory Catalog Customization limits (schema 2.7, 4000 characters), and why a signature finds nothing: scan scope, exclusions and the file-system cache (FSMon, Provider Cache 2). Do not use it for Fixlet relevance or ActionScript; use bigfix-skill for those.
+description: Write, edit, review, validate and test HCL BigFix Inventory (BFI) software signatures, the SoftwareIdentityCatalog XML files with ExtendedSignature CDATA bodies that the CIT scanner (wscanfs, wscansw) evaluates. Use it for custom catalog signatures, bigfix/CommunityContent Signatures/ PRs, software_*.xml files with versions like 0.AFFECTED or 0.any_version, scanner-language elements (MultipleInstance, FindFilePathEx, DpkgProductList, RpmProductInfo, MsiProductList, WinFileInfo, StringCrop, ReadFile), and running signatures through a standalone CIT scanner or a scanner-equipped endpoint. Also covers choosing a BFI signature type (package, file, template or extended), BigFix Inventory Catalog Customization limits (schema 2.7, the 3829-character import limit and the 4000-character UI limit), and why a signature finds nothing: scan scope, exclusions and the file-system cache (FSMon, Provider Cache 2). Do not use it for Fixlet relevance or ActionScript; use bigfix-skill for those.
 ---
 
 # BigFix Inventory signatures
@@ -30,7 +30,7 @@ Facts marked *(not verified)* weren't. Re-check scanner behavior when the scanne
 | Task | Read |
 | --- | --- |
 | Any signature work | This file, then [reference/scanner-behavior.md](reference/scanner-behavior.md): the scanner quirks decide whether a signature works |
-| Choosing a signature type, Catalog Customization, the 4000-character limit, getting a change onto endpoints | [reference/catalog.md](reference/catalog.md) |
+| Choosing a signature type, Catalog Customization, the body length limits (3829 import / 4000 UI), getting a change onto endpoints | [reference/catalog.md](reference/catalog.md) |
 | "The signature finds nothing": scan scope, exclusions, FSMon vs Provider Cache 2 | [reference/file-visibility.md](reference/file-visibility.md) |
 | Understanding or editing the XML | [reference/file-format.md](reference/file-format.md) |
 | Writing a new signature or detection method | [reference/writing.md](reference/writing.md) (rules and templates) |
@@ -82,11 +82,18 @@ More in [reference/scanner-behavior.md](reference/scanner-behavior.md).
 5. Keep the file ASCII-only, with a newline at the end (non-ASCII characters fail the upstream
    CI check). Match the line endings already used by the file you are editing, and whatever the
    host repository's `.gitattributes` or editor settings dictate; don't convert a file wholesale
-   as a side effect of an edit. A body destined for Catalog Customization also has to stay
-   under 4000 characters.
+   as a side effect of an edit. Keep every CDATA body **under 3829 characters**, the most
+   BigFix Inventory imports from one body; a body destined for Catalog Customization also has
+   to stay under the UI's 4000 ([reference/catalog.md](reference/catalog.md#body-length-limits)).
+   When the file carries a leading comment, keep its `ProductName` / `Release` equal to
+   `<Software name>` / `@version`
+   ([reference/file-format.md](reference/file-format.md#leading-comment)).
 6. Validate: `python scripts/lint_signatures.py <files>` (levels 1-2 and the conventions), then
    level 3 and 4 with the harness ([reference/validation.md](reference/validation.md),
-   [reference/testing.md](reference/testing.md)).
+   [reference/testing.md](reference/testing.md)). A repository that runs pre-commit can gate the
+   same ground with `bes-signature-lint` from
+   [jgstew/pre-commit-bigfix](https://github.com/jgstew/pre-commit-bigfix) v2.5.0+
+   ([reference/validation.md](reference/validation.md#pre-commit-bes-signature-lint)).
 7. When an expression's result is uncertain, write a probe signature that exports every
    intermediate variable ([reference/testing.md](reference/testing.md#probing-scanner-behavior))
    instead of guessing.
@@ -104,7 +111,7 @@ All scripts are in [scripts/](scripts/). Python 3.9+. See [scripts/SOURCE.md](sc
 
 | Script | Runs on | What it does |
 | --- | --- | --- |
-| `lint_signatures.py` | anywhere | Static checks: outer XSD (with `lxml` and a schema), CDATA well-formedness, IDs, dates, guards, conventions, identical `IS_INSTALLED` blocks, ASCII. Optional level 3 with `--xss-dir`. Exit 1 on errors. Written for this skill. |
+| `lint_signatures.py` | anywhere | Static checks: outer XSD (with `lxml` and a schema), CDATA well-formedness, body length (3829), IDs, dates, guards, conventions, identical `IS_INSTALLED` blocks, leading comment vs `Software` attributes, ASCII. Optional level 3 with `--xss-dir`. Exit 1 on errors. Written for this skill. |
 | `install_cit.sh` | inside a Linux machine or container | Downloads (SHA256-pinned) and installs CIT 11.0.44.0 to `$CIT_DIR` (default `/opt/cit`) as a private copy. |
 | `install_cit.ps1` | Windows (admin PowerShell) | Same for Windows, into `-T` (default `C:\bfi_sig_test`). |
 | `scanner_test.py` | host with `docker` and `xmllint` | Runs signatures (shipped and diag copies) through the scanner in a container; level 3 + 4; prints JSON. |

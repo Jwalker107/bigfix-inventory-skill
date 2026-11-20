@@ -41,13 +41,38 @@ discriminator.
 
 - The supported Inventory schema version is **2.7**.
 - Signature content pasted into the UI **must not exceed 4000 characters**. This is a UI limit,
-  separate from the exported `SoftwareIdentityCatalog` schema, which has no such limit. A body
-  that exceeds it has to be split into more than one detection method, or simplified.
+  separate from the exported `SoftwareIdentityCatalog` schema, which has no such limit, and
+  separate again from what BigFix Inventory imports. See
+  [Body length limits](#body-length-limits).
 - `IS_INSTALLED` is **mandatory** and must be `true` exactly when the product should be reported.
   `INSTALL_PATH` and `DETAILED_VER` are optional in HCL's model; the convention used throughout
   this skill is to export all three.
 - The component **release** comes from the catalog entry; `DETAILED_VER` supplies the detailed
   version.
+
+## Body length limits
+
+Two different limits apply to one `<ExtendedSignature>` CDATA body. The exported
+`SoftwareIdentityCatalog` schema itself has **no** length limit, so neither limit is visible to
+level 1 validation.
+
+| Limit | Applies to | Counted as |
+| --- | --- | --- |
+| **3829 characters** | What BigFix Inventory **imports** from one body | The characters between `<![CDATA[` and `]]>`, whitespace included |
+| **4000 characters** | Signature content **pasted into the Catalog Customization UI** | The content as pasted |
+
+Staying under **3829** satisfies both, so that is the number to design to. A body over it has
+to be split into more than one detection method, or simplified.
+
+`scripts/lint_signatures.py` fails a body over 3829 and warns above 90% of it; the
+`bes-signature-lint` pre-commit hook does the same as `E100` / `W100`, with
+`--max-signature-chars` to change the number
+([validation.md](validation.md#pre-commit-bes-signature-lint)).
+
+The 3829 figure comes from
+[jgstew/pre-commit-bigfix](https://github.com/jgstew/pre-commit-bigfix) v2.5.0 and is not
+stated in HCL's public documentation; the 4000 figure is HCL's *(3829 not independently
+verified here)*.
 
 ## Operand and operator vocabulary
 

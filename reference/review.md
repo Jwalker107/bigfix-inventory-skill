@@ -6,7 +6,9 @@
    `git fetch origin pull/<n>/head:pr<n>`, then `git show pr<n>:Signatures/<file> > <scratch>/<file>`.
    Also get the current `main` version to diff against.
 2. **Static checks:** `python scripts/lint_signatures.py <file>` (add `--xsd`/`--xss-dir` when
-   available). Treat errors as blocking; judge each warning.
+   available). Treat errors as blocking; judge each warning. In a repository with pre-commit,
+   `pre-commit run bes-signature-lint --all-files` covers the same ground plus repo-wide
+   `uniqueId` collisions ([validation.md](validation.md#pre-commit-bes-signature-lint)).
 3. **Behavior (level 4):** run `scripts/scanner_test.py` (Linux) and, for Windows signatures,
    `scripts/win_scanner_test.py`. Add a fixture for each detection method, including:
    - both sides of every version threshold (last affected, first fixed);
@@ -34,6 +36,8 @@
 - [ ] Outer XML well-formed; `Software@version` like `0.AFFECTED` / `0.any_version`.
 - [ ] `uniqueId`s: lowercase, 36 chars, unique across the folder; new ones are v4.
 - [ ] `created`/`modified` valid; `modified` bumped where a body changed.
+- [ ] A leading comment, if present, has `ProductName` / `Release` equal to `<Software name>` /
+      `@version`.
 - [ ] Every CDATA body well-formed and passes the scanner XSS schema (level 3).
 - [ ] Every `ReadFile` guarded by `FileExists` + `FileInfoCompare field="size"`.
 - [ ] Crops of user-editable text also strip `&#13;`.
@@ -48,7 +52,9 @@
       the scan catalog actually searches for ([file-visibility.md](file-visibility.md)).
 - [ ] An extended signature is warranted - a Package/File/template signature wouldn't do
       ([catalog.md](catalog.md)).
-- [ ] If the body is meant to be pasted into Catalog Customization: under 4000 characters.
+- [ ] Every CDATA body under 3829 characters (what BigFix Inventory imports), and under 4000
+      as well if it is meant to be pasted into Catalog Customization
+      ([catalog.md](catalog.md#body-length-limits)).
 - [ ] A corrected detection method keeps its signature GUID; a retired one is deleted and
       replaced under a *new* GUID.
 - [ ] No HCL files (scanner, `config/xss`, `config.xml`) in the change.
